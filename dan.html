@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Rebellion: Rise of the Interns - Shooting Game</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; background: #1a202c; height: 100vh; display: flex; justify-content: center; align-items: center; }
+    .game-container { position: relative; width: 100%; max-width: 600px; height: 100%; display: flex; flex-direction: column; align-items: center; }
+    canvas { width: 100% !important; height: auto !important; background: #2d3748; border: 2px solid #4a5568; box-shadow: 0 0 20px rgba(239,68,68,0.3); border-radius: .5rem; }
+    .action-button { background-color: #38a169; color: white; font-weight: bold; padding: .5rem 1rem; border-radius: .5rem; transition: .2s; }
+    .action-button:active { transform: scale(.95); }
+    .action-button:disabled { background: #4a5568; }
+    .message-box { margin-top: .5rem; padding: .5rem 1rem; background: rgba(45,55,72,0.8); color: #a0aec0; border-radius: .25rem; text-align: center; min-height: 2.5rem; }
+    #mobileControls { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 1rem; }
+    @media(min-width:640px) { #mobileControls { display: none; } }
+
+    /* Overlay styling */
+    #gameOverImageOverlay {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      background-color: #1a202c;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      z-index: 1000; cursor: pointer;
+      padding: 20px; box-sizing: border-box;
+    }
+    #gameOverImageOverlay iframe {
+      width: 90%; height: 80%;
+      border: none; border-radius: .5rem;
+    }
+    #gameOverImageOverlay p {
+      margin-top: 1rem; color: #63b3ed;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="game-container">
+    <h1 id="gameTitle" class="text-2xl text-red-500 font-bold mb-2 text-center">Rebellion: Rise of the Interns</h1>
+    <p id="gameSubtitle" class="text-gray-400 text-sm mb-2 text-center">Daniyaal vs. Jay (Moving Boss)</p>
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="uiControlsContainer" class="flex justify-between w-full mt-2 px-4">
+      <button id="startGameButton" class="action-button">Start Game</button>
+      <span class="text-gray-300 text-sm self-center">Use ← → / Space</span>
+    </div>
+
+    <div id="messageBox" class="message-box">Press “Start Game” to begin!</div>
+
+    <!-- Mobile touch buttons -->
+    <div id="mobileControls">
+      <button id="btnLeft"  class="action-button">◀</button>
+      <button id="btnShoot" class="action-button">●</button>
+      <button id="btnRight" class="action-button">▶</button>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const startBtn = document.getElementById('startGameButton');
+    const msgBox  = document.getElementById('messageBox');
+    const container = document.querySelector('.game-container');
+
+    const btnLeft  = document.getElementById('btnLeft');
+    const btnRight = document.getElementById('btnRight');
+    const btnShoot = document.getElementById('btnShoot');
+
+    let gameRunning = false, rafId;
+    const keys = { ArrowLeft: false, ArrowRight: false, " ": false };
+
+    const daniyaal = { x:0, y:0, w:28, h:36, r:10, speed:5, projectiles:[], cooldown:0, cooldownMax:15, color:'#c53030' };
+    daniyaal.totalH = daniyaal.h + daniyaal.r;
+    const jay = { x:0, y:0, w:100, h:40, r:15, hp:150, maxHp:150, dir:1, speed:5, color:'#4a5568', hitTimer:0, origColor:'#4a5568' };
+    jay.totalH = jay.h + jay.r;
+    const projProps = { w:8, h:15, speed:7, color:'#fbd38d' };
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width  = rect.width * devicePixelRatio;
+      canvas.height = rect.width * 3/4 * devicePixelRatio;
+      ctx.scale(devicePixelRatio, devicePixelRatio);
+      const padTop = canvas.clientHeight * .05;
+      const padBot = canvas.clientHeight * .05;
+      daniyaal.y = canvas.clientHeight - daniyaal.totalH - padBot;
+      if (!gameRunning) daniyaal.x = canvas.clientWidth/2 - daniyaal.w/2;
+      jay.y = padTop;
+      if (!gameRunning) jay.x = canvas.clientWidth/2 - jay.w/2;
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    function draw() {
+      ctx.fillStyle = '#2d3748';
+      ctx.fillRect(0,0,canvas.clientWidth,canvas.clientHeight);
+      for (let i=0; i<3; i++) {
+        ctx.fillStyle = `rgba(74,85,104,${Math.random()*.3+.1})`;
+        ctx.fillRect(Math.random()*canvas.clientWidth, Math.random()*canvas.clientHeight,
+          Math.random()*40+15, Math.random()*40+15);
+      }
+      // Daniyaal
+      ctx.fillStyle = daniyaal.color;
+      ctx.beginPath();
+      ctx.arc(daniyaal.x + daniyaal.w/2, daniyaal.y + daniyaal.r, daniyaal.r, 0, 2*Math.PI);
+      ctx.fill();
+      ctx.fillRect(daniyaal.x, daniyaal.y + daniyaal.r*1.5, daniyaal.w, daniyaal.h);
+      // Jay
+      ctx.fillStyle = jay.color;
+      ctx.fillRect(jay.x, jay.y, jay.w, jay.h);
+      ctx.beginPath();
+      ctx.arc(jay.x + jay.w/2, jay.y + jay.h/2, jay.r, 0, 2*Math.PI);
+      ctx.fill();
+      // Projectiles
+      daniyaal.projectiles.forEach(p => {
+        ctx.fillStyle = projProps.color;
+        ctx.fillRect(p.x, p.y, p.w, p.h);
+      });
+    }
+
+    function updatePlayer() {
+      if (keys.ArrowLeft && daniyaal.x > 0) daniyaal.x -= daniyaal.speed;
+      if (keys.ArrowRight && daniyaal.x + daniyaal.w < canvas.clientWidth) daniyaal.x += daniyaal.speed;
+      if (daniyaal.cooldown > 0) daniyaal.cooldown--;
+      if (keys[" "] && daniyaal.cooldown === 0) {
+        daniyaal.projectiles.push({
+          x: daniyaal.x + daniyaal.w/2 - projProps.w/2,
+          y: daniyaal.y, w: projProps.w, h: projProps.h
+        });
+        daniyaal.cooldown = daniyaal.cooldownMax;
+      }
+    }
+    function updateBoss() {
+      jay.x += jay.speed * jay.dir;
+      if (jay.x <= 0) { jay.x = 0; jay.dir = 1; }
+      else if (jay.x + jay.w >= canvas.clientWidth) { jay.x = canvas.clientWidth - jay.w; jay.dir = -1; }
+      if (Math.random() < .005) jay.dir *= -1;
+    }
+    function updateProj() {
+      for (let i=daniyaal.projectiles.length-1; i>=0; i--) {
+        const p = daniyaal.projectiles[i];
+        p.y -= projProps.speed;
+        if (p.x < jay.x + jay.w && p.x + p.w > jay.x &&
+            p.y < jay.y + jay.h && p.y + p.h > jay.y) {
+          jay.hp = Math.max(0, jay.hp - 10);
+          jay.color = '#ff0000'; jay.hitTimer = 5;
+          daniyaal.projectiles.splice(i,1);
+          if (jay.hp === 0) { endGame(true); return; }
+          break;
+        }
+        if (p.y + p.h < 0) daniyaal.projectiles.splice(i,1);
+      }
+      if (jay.hitTimer > 0) {
+        jay.hitTimer--;
+        if (jay.hitTimer === 0) jay.color = jay.origColor;
+      }
+    }
+
+    function gameLoop() {
+      if (!gameRunning) return;
+      updatePlayer(); updateBoss(); updateProj();
+      draw();
+      rafId = requestAnimationFrame(gameLoop);
+    }
+
+    function startGame() {
+      const old = document.getElementById('gameOverImageOverlay');
+      if (old) old.remove();
+      gameRunning = true;
+      startBtn.disabled = true;
+      startBtn.textContent = 'Playing…';
+      msgBox.textContent = 'Defeat Jay!';
+      jay.hp = jay.maxHp;
+      jay.dir = Math.random() < .5 ? 1 : -1;
+      daniyaal.projectiles = [];
+      daniyaal.cooldown = 0;
+      resizeCanvas();
+      gameLoop();
+    }
+
+    function endGame(won) {
+      gameRunning = false;
+      cancelAnimationFrame(rafId);
+      startBtn.disabled = false;
+      startBtn.textContent = 'Start Game';
+      msgBox.textContent = won ? 'You win! Tap overlay to replay.' : 'Game Over! Tap to retry.';
+
+      if (won) {
+        const overlay = document.createElement('div');
+        overlay.id = 'gameOverImageOverlay';
+        overlay.innerHTML = `
+          <iframe src="https://drive.google.com/file/d/15FejqRn8_oxMJMuqdadVKg0J2R1b0vAf/preview"></iframe>
+          <p>Tap anywhere to play again</p>
+        `;
+        overlay.addEventListener('click', startGame, { once: true });
+        container.appendChild(overlay);
+      }
+    }
+
+    startBtn.addEventListener('click', startGame);
+    window.addEventListener('keydown', e => {
+      if (keys.hasOwnProperty(e.key)) { keys[e.key] = true; if (gameRunning) e.preventDefault(); }
+    });
+    window.addEventListener('keyup', e => {
+      if (keys.hasOwnProperty(e.key)) keys[e.key] = false;
+    });
+
+    function bindTouch(btn, key) {
+      btn.addEventListener('touchstart', e => { keys[key] = true; e.preventDefault(); });
+      btn.addEventListener('touchend',   e => { keys[key] = false; e.preventDefault(); });
+    }
+    bindTouch(btnLeft,  'ArrowLeft');
+    bindTouch(btnRight, 'ArrowRight');
+    bindTouch(btnShoot, ' ');
+
+    resizeCanvas();
+    draw();
+  </script>
+</body>
+</html>
