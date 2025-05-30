@@ -13,8 +13,20 @@
     .action-button:active { transform: scale(.95); }
     .action-button:disabled { background: #4a5568; }
     .message-box { margin-top: .5rem; padding: .5rem 1rem; background: rgba(45,55,72,0.8); color: #a0aec0; border-radius: .25rem; text-align: center; min-height: 2.5rem; }
-    #mobileControls { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 1rem; }
-    @media(min-width:640px) { #mobileControls { display: none; } }
+    
+    /* Mobile touch buttons container */
+    #mobileControls {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 2rem;          /* increased gap between buttons */
+      padding: 0 1rem;    /* optional side padding */
+    }
+    @media(min-width:640px) {
+      #mobileControls { display: none; }
+    }
 
     /* Overlay styling */
     #gameOverImageOverlay {
@@ -192,29 +204,5 @@
           <iframe src="https://drive.google.com/file/d/15FejqRn8_oxMJMuqdadVKg0J2R1b0vAf/preview"></iframe>
           <p>Tap anywhere to play again</p>
         `;
-        overlay.addEventListener('click', startGame, { once: true });
-        container.appendChild(overlay);
-      }
-    }
+        overlay.addEventListener('click', startGame, { once });
 
-    startBtn.addEventListener('click', startGame);
-    window.addEventListener('keydown', e => {
-      if (keys.hasOwnProperty(e.key)) { keys[e.key] = true; if (gameRunning) e.preventDefault(); }
-    });
-    window.addEventListener('keyup', e => {
-      if (keys.hasOwnProperty(e.key)) keys[e.key] = false;
-    });
-
-    function bindTouch(btn, key) {
-      btn.addEventListener('touchstart', e => { keys[key] = true; e.preventDefault(); });
-      btn.addEventListener('touchend',   e => { keys[key] = false; e.preventDefault(); });
-    }
-    bindTouch(btnLeft,  'ArrowLeft');
-    bindTouch(btnRight, 'ArrowRight');
-    bindTouch(btnShoot, ' ');
-
-    resizeCanvas();
-    draw();
-  </script>
-</body>
-</html>
